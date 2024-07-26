@@ -13,3 +13,7 @@
 - **Add**: Use `dins add executable_file` to add an executable file to your `/usr/local/bin` directory.
 
 
+
+### Installation:
+
+**just clone this repository and run `sudo install.sh`**
