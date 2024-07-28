@@ -24,29 +24,35 @@ def check_dir():
 
 def clean_cache():
     """Remove the cache directory."""
-    try:
-        remove(CACHE_PATH, privilege=1, mute_log=True)
-    except FileNotFoundError:
-        pass
+    remove(CACHE_PATH, privilege=1, mute_log=True)
 
 def move(src, dest, privilege: int = 0):
-    """Move a file or directory, optionally using sudo."""
+    """Move a file, optionally using sudo."""
     print(f"Moving from {src} to {dest}")
-    cmd = ['sudo', 'mv', '-f', src, dest] if privilege == 0 else ['mv', src, dest]
-    subprocess.run(cmd, check=True, capture_output=True)
+    cmd = ['sudo', 'mv', '-u', src, dest] if privilege == 0 else ['mv', '-u', src, dest]
+    subprocess.run(cmd, capture_output=True, check=True)
+
+def copy(src, dest, privilege: int = 0):
+    """Copy a file, optionally using sudo."""
+    print(f"Copying from {src} to {dest}")
+    cmd = ['sudo', 'cp', '-u', src, dest] if privilege == 0 else ['cp', '-u', src, dest]
+    subprocess.run(cmd, capture_output=True, check=True)
 
 def remove(path, privilege: int = 0, mute_log: bool = False):
     """Remove a file or directory, optionally using sudo."""
     if not mute_log:
         print(f"Removing {path}")
     cmd = ['sudo', 'rm', '-r', path] if privilege == 0 else ['rm', '-r', path]
-    subprocess.run(cmd, capture_output=True)
+    try:
+        subprocess.run(cmd, capture_output=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to remove file or directory {path.strip()}: {e.stderr.decode('utf-8')}")
 
 def mkdir(path, privilege: int = 0):
     """Create a directory, optionally using sudo."""
     print(f"Creating directory {path}")
     cmd = ['sudo', 'mkdir', '--parent', path] if privilege == 0 else ['mkdir', '--parent', path]
-    subprocess.run(cmd, check=True, capture_output=True)
+    subprocess.run(cmd, capture_output=True, check=True)
 
 def get_paths(dirs, paths, dir_path, base_path):
     """Recursively collect directories and file paths."""
@@ -96,15 +102,15 @@ def install_package(package_path):
     preinst_path = os.path.join(control_path, "preinst")
     postinst_path = os.path.join(control_path, "postinst")
     
-    run_script(preinst_path)
-
-    src_cache = os.path.join(CACHE_PATH, os.path.basename(package_path))
-    src_dirs, src_paths = get_paths([], [], src_cache, src_cache)
-
-    new_dirs = []
-    new_files = []
-
     try:
+        run_script(preinst_path)
+
+        src_cache = os.path.join(CACHE_PATH, os.path.basename(package_path))
+        src_dirs, src_paths = get_paths([], [], src_cache, src_cache)
+
+        new_dirs = []
+        new_files = []
+
         for src_dir in src_dirs:
             dest_path = os.path.join('/', src_dir)
             if not os.path.isdir(dest_path):
@@ -114,18 +120,18 @@ def install_package(package_path):
         for src_path in src_paths:
             dest_path = os.path.join('/', src_path)
             src_path = os.path.join(src_cache, src_path)
-            move(src_path, dest_path)
-            new_files.append(dest_path)
-    except subprocess.CalledProcessError as e:
-        print(f"Error occurred during file operations: {e}")
-        for file_path in new_files:
-            try:
-                remove(file_path.strip())
-            except OSError as e:
-                print(f"Failed to remove file or directory {file_path.strip()}: {e}")
-        sys.exit(1)
+            if os.path.isfile(src_path):
+                move(src_path, dest_path)
+                new_files.append(dest_path)
 
-    run_script(postinst_path)
+        run_script(postinst_path)
+
+    except subprocess.CalledProcessError as e:
+        new_files.extend(new_dirs)
+        for file_path in new_files:
+            remove(file_path.strip())
+        print(f"Error occurred during installation: {e.stderr.decode('utf-8')}")
+        sys.exit(1)
 
     print("Updating icon cache...")
     subprocess.run([
@@ -189,10 +195,7 @@ def uninstall(package):
 
                 with open(os.path.join(control_path, "new_files"), "r", encoding='utf-8') as file:
                     for file_path in file.readlines():
-                        try:
-                            remove(file_path.strip())
-                        except OSError as e:
-                            print(f"Failed to remove file or directory {file_path.strip()}: {e}")
+                        remove(file_path.strip())
 
                 run_script(postrm_path)
 
@@ -233,15 +236,11 @@ def main():
         cache_path = os.path.join(CACHE_PATH, os.path.basename(package_path))
         control_path = os.path.join(CONF_PATH, os.path.basename(package_path))
         os.makedirs(control_path, exist_ok=True)
-        try:
-            print(f"Extracting package: {package_path}")
-            subprocess.run(["dpkg", "-x", package_path, cache_path], check=True, capture_output=True)
-            print(f"Extracting control data: {package_path}")
-            subprocess.run(["dpkg", "-e", package_path, control_path], check=True, capture_output=True)
-            install_package(package_path)
-        except subprocess.CalledProcessError as e:
-            print(f"Error during installation: {e}")
-            sys.exit(1)
+        print(f"Extracting package: {package_path}")
+        subprocess.run(["dpkg", "-x", package_path, cache_path], check=True, capture_output=True)
+        print(f"Extracting control data: {package_path}")
+        subprocess.run(["dpkg", "-e", package_path, control_path], check=True, capture_output=True)
+        install_package(package_path)
     elif args.command == "add":
         add_file(os.path.abspath(args.file_path), args.output)
     elif args.command == "list":

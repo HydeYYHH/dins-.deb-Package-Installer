@@ -23,7 +23,7 @@ fi
 
 # Copy main.py to INSTALL_DIR
 echo "Installing dins..."
-cp ./main.py "$INSTALL_DIR/$SCRIPT_NAME"
+cp -f ./main.py "$INSTALL_DIR/$SCRIPT_NAME"
 
 if [ $? -ne 0 ]; then
   echo "Error copying main.py to $INSTALL_DIR. Aborting."
