@@ -1,6 +1,6 @@
-# dins: .deb Package Installer
+# .deb Package Installer
 
-**dins** is a straightforward .deb package installer designed for non-Debian Linux users, such as those using Arch Linux. This script ensures a clean installation and uninstallation process by tracking all newly created files and directories during installation. It facilitates the removal of the application by systematically deleting all associated files.
+I write this because my arch linux cannot install .deb package from dpkg command for some reasons. This script install .deb package straightforwardly and ensures a clean installation and uninstallation process by tracking all newly created files and directories during installation. It facilitates the removal of the application by systematically deleting all associated files.
 
 ### Available Options:
 
